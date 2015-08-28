@@ -7,17 +7,19 @@ var querystring = require('querystring');
 var botAPIKey = '9999999:KEYKEYCHANGEMEKEYKEY';
 
 exports.handler = function(event, context) {
+    // Log the basics, just in case
     console.log("Request received:\n", JSON.stringify(event));
     console.log("Context received:\n", JSON.stringify(context));
 
-
+    // We're going to respond with the user's ID, reply to their message
+    // and some text of our own.
     var post_data = querystring.stringify({
     	'chat_id': event.message.from.id,
     	'reply_to_message_id': event.message.message_id,
     	'text': "Hello " + event.message.from.first_name + " (aka " + event.message.from.username+"). I'm not very smart I agree fully with \""+event.message.text+"\", which you just said to me. You can thank AWS API Gateway, Lambda and DynamoDB for this wonderful test. Good luck!"
     });
 
-    // An object of options to indicate where to post to
+    // Build the post options
     var post_options = {
           hostname: 'api.telegram.org',
           port: 443,
@@ -29,26 +31,31 @@ exports.handler = function(event, context) {
           }
     };
 
+    // Create the post request
     var body = '';
-    // Set up the request
     var post_req = https.request(post_options, function(res) {
         res.setEncoding('utf8');
+
+        // Save the returning data
         res.on('data', function (chunk) {
             console.log('Response: ' + chunk);
             body += chunk;
         });
 
+        // Are we done yet?
         res.on('end', function() {
             console.log('Successfully processed HTTPS response');
             // If we know it's JSON, parse it
             if (res.headers['content-type'] === 'application/json') {
                 body = JSON.parse(body);
             }
+
+            // This tells Lambda that this script is done
             context.succeed(body);
         });
     });
 
-    // post the data
+    // Post the data
     console.log("write the post");
     post_req.write(post_data);
     post_req.end();
@@ -57,9 +64,12 @@ exports.handler = function(event, context) {
 
     // Now into the logging portion (DynamoDB)
     console.log("Into the dynamo");
+
+    // You can change this variable if you want.
     var tableName = "telegramlog";
     var datetime = new Date().getTime().toString();
 
+    // Put all the data into Dynamo
     dynamodb.putItem({
             "TableName": tableName,
             "Item": {
@@ -81,7 +91,6 @@ exports.handler = function(event, context) {
                 context.fail('ERROR: Dynamo failed: ' + err);
             } else {
                 console.log('Dynamo Success: ' + JSON.stringify(data, null, '  '));
-                //context.succeed('SUCCESS');
             }
         });
 }
